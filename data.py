@@ -12,7 +12,9 @@ PROJECT_ROOT = Path.cwd()
 DATA_ROOT = PROJECT_ROOT / "birdclef-2023"
 TRAIN_AUDIO_ROOT = DATA_ROOT / "train_audio"
 CHUNK_AUDIO_ROOT = DATA_ROOT / "15secondchunks"
+TRIMMED_CHUNK_ROOT = DATA_ROOT / "15secondchunkstrimmed"
 FEATURES_ROOT = DATA_ROOT / "features"
+FEATURES_TRIMMED_ROOT = DATA_ROOT / "features_trimmed"
 METADATA_CLEANED = DATA_ROOT / "train_metadata_cleaned.csv"
 
 

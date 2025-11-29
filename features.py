@@ -10,7 +10,13 @@ from typing import Tuple
 import librosa
 import numpy as np
 
-from data import CHUNK_AUDIO_ROOT, FEATURES_ROOT, load_cleaned_metadata
+from data import (
+    CHUNK_AUDIO_ROOT,
+    TRIMMED_CHUNK_ROOT,
+    FEATURES_ROOT,
+    FEATURES_TRIMMED_ROOT,
+    load_cleaned_metadata,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +65,7 @@ def compute_global_rms(
     base_dir: Path | str | None = None,
     sr: int | None = None,
     max_duration: float | None = 10.0,
+    chunk_root: Path | str | None = None,
 ) -> float:
     """Compute a single RMS value for one 15-second audio chunk."""
 
@@ -67,7 +74,12 @@ def compute_global_rms(
     else:
         base_dir = Path(base_dir)
 
-    audio_path = base_dir / CHUNK_AUDIO_ROOT.relative_to(Path.cwd()) / filename
+    if chunk_root is None:
+        chunk_root = CHUNK_AUDIO_ROOT
+    else:
+        chunk_root = Path(chunk_root)
+
+    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
 
     try:
         y, _ = librosa.load(audio_path, sr=sr, duration=max_duration)
@@ -86,6 +98,7 @@ def compute_logmel_mean_features(
     sr: int = 32000,
     n_mels: int = 64,
     max_duration: float | None = 15.0,
+    chunk_root: Path | str | None = None,
 ) -> np.ndarray:
     """Compute per-mel-band mean log-mel features for one audio file."""
 
@@ -94,7 +107,12 @@ def compute_logmel_mean_features(
     else:
         base_dir = Path(base_dir)
 
-    audio_path = base_dir / CHUNK_AUDIO_ROOT.relative_to(Path.cwd()) / filename
+    if chunk_root is None:
+        chunk_root = CHUNK_AUDIO_ROOT
+    else:
+        chunk_root = Path(chunk_root)
+
+    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
 
     try:
         y, _sr = librosa.load(audio_path, sr=sr, duration=max_duration)
@@ -115,15 +133,34 @@ def compute_logmel_mean_features(
 # ---------------------------------------------------------------------------
 
 
-def _get_feature_cache_path(spec: FeatureSpec, base_dir: Path | str | None = None) -> Path:
-    """Return the cache path for a given feature spec."""
+def _get_feature_cache_path(
+    spec: FeatureSpec,
+    base_dir: Path | str | None = None,
+    chunk_root: Path | str | None = None,
+) -> Path:
+    """Return the cache path for a given feature spec.
+
+    If chunk_root is TRIMMED_CHUNK_ROOT, uses FEATURES_TRIMMED_ROOT.
+    Otherwise defaults to FEATURES_ROOT (for regular chunks).
+    """
 
     if base_dir is None:
         base_dir = Path.cwd()
     else:
         base_dir = Path(base_dir)
 
-    cache_dir = base_dir / FEATURES_ROOT.relative_to(Path.cwd())
+    # Determine which features directory to use based on chunk_root
+    if chunk_root is None:
+        features_dir = FEATURES_ROOT
+    else:
+        chunk_root = Path(chunk_root)
+        # Check if this is the trimmed chunks directory
+        if chunk_root.name == TRIMMED_CHUNK_ROOT.name or chunk_root == TRIMMED_CHUNK_ROOT:
+            features_dir = FEATURES_TRIMMED_ROOT
+        else:
+            features_dir = FEATURES_ROOT
+
+    cache_dir = base_dir / features_dir.relative_to(Path.cwd())
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     name_parts = [spec.kind]
@@ -137,6 +174,7 @@ def _get_feature_cache_path(spec: FeatureSpec, base_dir: Path | str | None = Non
 def compute_or_load_features(
     spec: FeatureSpec,
     base_dir: Path | str | None = None,
+    chunk_root: Path | str | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute features for all samples or load them from a cache file."""
 
@@ -145,7 +183,8 @@ def compute_or_load_features(
     else:
         base_dir = Path(base_dir)
 
-    cache_path = _get_feature_cache_path(spec, base_dir=base_dir)
+    cache_path = _get_feature_cache_path(
+        spec, base_dir=base_dir, chunk_root=chunk_root)
     if cache_path.exists():
         print(f"Loading cached {spec.kind} features from {cache_path} ...")
         with cache_path.open("rb") as f:
@@ -170,7 +209,7 @@ def compute_or_load_features(
     if spec.kind == "rms":
         print("Computing RMS features from 15-second chunks (this may take a while)...")
         rms_values = [
-            compute_global_rms(fn, base_dir=base_dir) for fn in filenames
+            compute_global_rms(fn, base_dir=base_dir, chunk_root=chunk_root) for fn in filenames
         ]
         rms_values = np.asarray(rms_values, dtype=np.float32)
 
@@ -188,6 +227,7 @@ def compute_or_load_features(
             feats = compute_logmel_mean_features(
                 filename=fn,
                 base_dir=base_dir,
+                chunk_root=chunk_root,
                 n_mels=spec.n_mels,
             )
             logmel_features.append(feats)

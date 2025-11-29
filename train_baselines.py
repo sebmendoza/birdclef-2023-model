@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from features import FeatureSpec
+from data import TRIMMED_CHUNK_ROOT
 from models import (
     ExperimentConfig,
     build_logistic_regression_pipeline,
@@ -48,7 +49,8 @@ EXPERIMENTS: list[ExperimentConfig] = [
 def main() -> None:
     base_dir = Path.cwd()
     for cfg in EXPERIMENTS:
-        train_and_evaluate_experiment(cfg, base_dir=base_dir)
+        train_and_evaluate_experiment(
+            cfg, base_dir=base_dir, chunk_root=TRIMMED_CHUNK_ROOT)
         print("\n")
 
 

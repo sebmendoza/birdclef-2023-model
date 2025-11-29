@@ -2,6 +2,7 @@ birdclef-2023/test_soundscapes
 birdclef-2023/train_audio
 birdclef-2023/train_metadata_cleaned.csv
 birdclef-2023/15secondchunks
+birdclef-2023/15secondchunkstrimmed
 venv/
 __pycache__/
 .DS_Store
