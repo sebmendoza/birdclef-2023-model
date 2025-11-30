@@ -522,13 +522,15 @@ class AudioAugmenter:
         
         return results
     
-    def process_directory(self, input_dir: str, metadata_csv: str = None) -> str:
+    def process_directory(self, input_dir: str, metadata_csv: str = None, species_filter: List[str] = None) -> str:
         """
         Process all audio files in directory with augmentations
         
         Args:
             input_dir: Directory containing audio files organized by species
             metadata_csv: Optional path to existing metadata CSV
+            species_filter: Optional list of species directories to process (e.g., ['barswa', 'comsan'])
+                           If None, processes all species directories
             
         Returns:
             Path to generated metadata CSV
@@ -559,6 +561,8 @@ class AudioAugmenter:
             print(f"📊 Loaded metadata for {len(original_metadata_dict)} original files")
         
         print(f"Processing audio files from {input_dir}")
+        if species_filter:
+            print(f"Species filter: {species_filter}")
         enabled_augs = [name for name, enabled in [
             ('mixup', self.mixup),
             ('background_noise', self.background_noise), 
@@ -577,6 +581,10 @@ class AudioAugmenter:
                 continue
                 
             primary_label = species_dir.name
+            
+            # Skip if species filter is provided and this species is not in the filter
+            if species_filter and primary_label not in species_filter:
+                continue
             print(f"\n📁 Processing {primary_label}...")
             
             # Get all audio files for this species
