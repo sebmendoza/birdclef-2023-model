@@ -366,14 +366,13 @@ class AudioAugmenter:
             # Set default metadata if not provided
             if original_metadata is None:
                 original_metadata = {
+                    'type': '',
                     'latitude': '',
                     'longitude': '',
-                    'scientific_name': '',
-                    'common_name': '',
-                    'author': '',
-                    'license': '',
                     'rating': '',
-                    'url': ''
+                    'has_coordinates': False,
+                    'country': '',
+                    'continent': ''
                 }
             
             results = []
@@ -422,22 +421,19 @@ class AudioAugmenter:
                 output_path = species_dir / aug_filename
                 sf.write(output_path, aug_audio, self.target_sr, format='OGG', subtype='VORBIS')
                 
-                # Create metadata record with inherited metadata
+                # Create metadata record with inherited metadata (cleaned schema)
                 duration = len(aug_audio) / sr
                 metadata_record = {
                     'primary_label': primary_label,
-                    'secondary_labels': '[]',
-                    'type': "['augmented']",
+                    'type': original_metadata.get('type', "['augmented']"),
                     'latitude': original_metadata.get('latitude', ''),
                     'longitude': original_metadata.get('longitude', ''),
-                    'scientific_name': original_metadata.get('scientific_name', ''),
-                    'common_name': original_metadata.get('common_name', ''),
-                    'author': f"AudioAugmenter (orig: {original_metadata.get('author', 'Unknown')})",
-                    'license': original_metadata.get('license', 'Generated'),
-                    'rating': 'synthetic',
-                    'url': original_metadata.get('url', ''),
+                    'rating': original_metadata.get('rating', 'synthetic'),
                     'filename': f"{primary_label}/{aug_filename}",
                     'duration': duration,
+                    'has_coordinates': bool(original_metadata.get('latitude', '') and original_metadata.get('longitude', '')),
+                    'country': original_metadata.get('country', ''),
+                    'continent': original_metadata.get('continent', ''),
                     'original_file': str(file_path),
                     'augmentation_metadata': {
                         'clip_extraction': clip_metadata,
@@ -498,18 +494,15 @@ class AudioAugmenter:
                 
                 metadata_record = {
                     'primary_label': label1,
-                    'secondary_labels': f"['{label2}']",
-                    'type': "['mixup']",
+                    'type': primary_metadata.get('type', "['mixup']"),
                     'latitude': primary_metadata.get('latitude', ''),
                     'longitude': primary_metadata.get('longitude', ''),
-                    'scientific_name': primary_metadata.get('scientific_name', ''),
-                    'common_name': primary_metadata.get('common_name', ''),
-                    'author': f"AudioAugmenter (mixed: {primary_metadata.get('author', 'Unknown')} + {secondary_metadata.get('author', 'Unknown')})",
-                    'license': primary_metadata.get('license', 'Generated'),
-                    'rating': 'synthetic',
-                    'url': primary_metadata.get('url', ''),
+                    'rating': primary_metadata.get('rating', 'synthetic'),
                     'filename': f"mixup/{mixed_filename}",
                     'duration': duration,
+                    'has_coordinates': bool(primary_metadata.get('latitude', '') and primary_metadata.get('longitude', '')),
+                    'country': primary_metadata.get('country', ''),
+                    'continent': primary_metadata.get('continent', ''),
                     'original_files': [str(file1), str(file2)],
                     'augmentation_metadata': mix_meta
                 }
@@ -549,14 +542,13 @@ class AudioAugmenter:
             for _, row in orig_df.iterrows():
                 filename = Path(row['filename']).name  # Just the filename without path
                 original_metadata_dict[filename] = {
+                    'type': row.get('type', ''),
                     'latitude': row.get('latitude', ''),
                     'longitude': row.get('longitude', ''),
-                    'scientific_name': row.get('scientific_name', ''),
-                    'common_name': row.get('common_name', ''),
-                    'author': row.get('author', ''),
-                    'license': row.get('license', ''),
                     'rating': row.get('rating', ''),
-                    'url': row.get('url', '')
+                    'has_coordinates': row.get('has_coordinates', False),
+                    'country': row.get('country', ''),
+                    'continent': row.get('continent', '')
                 }
             print(f"📊 Loaded metadata for {len(original_metadata_dict)} original files")
         
@@ -616,16 +608,15 @@ class AudioAugmenter:
         if all_metadata:
             df = pd.DataFrame(all_metadata)
             
-            # Ensure BirdCLEF column order with duration
-            birdclef_columns = ['primary_label', 'secondary_labels', 'type', 'latitude', 'longitude', 
-                              'scientific_name', 'common_name', 'author', 'license', 'rating', 'url', 'filename', 'duration']
+            # Ensure cleaned schema column order
+            cleaned_columns = ['primary_label', 'type', 'latitude', 'longitude', 'rating', 'filename', 'duration', 'has_coordinates', 'country', 'continent']
             
-            for col in birdclef_columns:
+            for col in cleaned_columns:
                 if col not in df.columns:
                     df[col] = ''
             
-            # Reorder columns to match BirdCLEF format exactly
-            output_df = df[birdclef_columns].copy()
+            # Reorder columns to match cleaned schema format exactly
+            output_df = df[cleaned_columns].copy()
             
             # Save to CSV
             metadata_path = self.output_dir / "augmented_metadata.csv"
