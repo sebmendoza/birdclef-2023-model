@@ -13,7 +13,7 @@ DATA_ROOT = PROJECT_ROOT / "birdclef-2023"
 AUGMENTED_DATA_ROOT = DATA_ROOT / "augmented"
 TRAIN_AUDIO_ROOT = DATA_ROOT / "train_audio"
 CHUNK_AUDIO_ROOT = DATA_ROOT / "15secondchunks"
-TRIMMED_CHUNK_ROOT = DATA_ROOT / "15secondchunkstrimmed"
+TRIMMED_CHUNK_ROOT = DATA_ROOT / "15secondchunks"
 FEATURES_ROOT = DATA_ROOT / "features"
 FEATURES_TRIMMED_ROOT = DATA_ROOT / "features_trimmed"
 METADATA_CLEANED = DATA_ROOT / "train_metadata_cleaned.csv"
@@ -43,12 +43,16 @@ def load_cleaned_metadata(base_dir: Path | str | None = None, include_augmented:
             print(f"Including augmented data from {augmented_path}")
             df_augmented = pd.read_csv(augmented_path)
             
+            # Get the species that have augmented data
+            augmented_species = set(df_augmented['primary_label'].unique())
+            print(f"Found augmented data for species: {sorted(augmented_species)}")
+            
             # Ensure both dataframes have the same columns
             common_columns = list(set(df_original.columns) & set(df_augmented.columns))
             df_original = df_original[common_columns]
             df_augmented = df_augmented[common_columns]
             
-            # Concatenate the dataframes
+            # Concatenate ALL original data + augmented data
             df_combined = pd.concat([df_original, df_augmented], ignore_index=True)
             print(f"Combined dataset: {len(df_original)} original + {len(df_augmented)} augmented = {len(df_combined)} total samples")
             return df_combined
