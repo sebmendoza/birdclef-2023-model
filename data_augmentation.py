@@ -20,8 +20,7 @@ Usage:
         time_shift=True,
         freq_masking=True,
         time_masking=True,
-        color_jitter=True,
-        random_clip=True
+        color_jitter=True
     )
     
     augmented_data = augmenter.process_directory("birdclef-2023/train_audio")
@@ -31,9 +30,7 @@ import librosa
 import numpy as np
 import pandas as pd
 import soundfile as sf
-import os
 from pathlib import Path
-import random
 import json
 import shutil
 from typing import Dict, List, Tuple, Optional, Union
@@ -108,7 +105,6 @@ class AudioAugmenter:
                  freq_masking: bool = False,
                  time_masking: bool = False,
                  color_jitter: bool = False,
-                 random_clip: bool = False,
                  output_dir: str = "birdclef-2023/augmented",
                  target_sr: int = 32000,
                  clip_duration: float = 5.0):
@@ -123,7 +119,6 @@ class AudioAugmenter:
             freq_masking: Apply frequency masking
             time_masking: Apply time masking
             color_jitter: Apply spectral color jitter
-            random_clip: Extract random clips
             output_dir: Directory to save augmented data
             target_sr: Target sample rate
             clip_duration: Duration of clips in seconds
@@ -135,7 +130,6 @@ class AudioAugmenter:
         self.freq_masking = freq_masking
         self.time_masking = time_masking
         self.color_jitter = color_jitter
-        self.random_clip = random_clip
         
         self.output_dir = Path(output_dir)
         self.target_sr = target_sr
@@ -328,34 +322,6 @@ class AudioAugmenter:
         
         return jittered_audio, metadata
     
-    def extract_random_clip(self, audio: np.ndarray) -> Tuple[np.ndarray, Dict]:
-        """Extract random clip of specified duration"""
-        audio_duration = len(audio) / self.target_sr
-        
-        if audio_duration <= self.clip_duration:
-            # Audio is shorter than clip duration, pad with zeros
-            target_samples = int(self.clip_duration * self.target_sr)
-            if len(audio) < target_samples:
-                audio = np.pad(audio, (0, target_samples - len(audio)), 'constant')
-            clip = audio[:target_samples]
-            start_time = 0.0
-        else:
-            # Extract random clip
-            max_start = audio_duration - self.clip_duration
-            start_time = np.random.uniform(0, max_start)
-            start_sample = int(start_time * self.target_sr)
-            end_sample = start_sample + int(self.clip_duration * self.target_sr)
-            clip = audio[start_sample:end_sample]
-        
-        metadata = {
-            'augmentation': 'random_clip',
-            'clip_duration': float(self.clip_duration),
-            'start_time': float(start_time),
-            'original_duration': float(audio_duration)
-        }
-        
-        return clip, metadata
-    
     def process_audio_file(self, file_path: Path, primary_label: str, original_metadata: Dict = None) -> List[Dict]:
         """Process a single audio file with all enabled augmentations"""
         try:
@@ -377,11 +343,7 @@ class AudioAugmenter:
             
             results = []
             
-            # Apply random clip first if enabled
-            if self.random_clip:
-                audio, clip_metadata = self.extract_random_clip(audio)
-            else:
-                clip_metadata = None
+
             
             # Apply individual augmentations
             augmentations = []
@@ -470,10 +432,7 @@ class AudioAugmenter:
                 audio1, _ = librosa.load(file1, sr=self.target_sr)
                 audio2, _ = librosa.load(file2, sr=self.target_sr)
                 
-                # Apply random clipping if enabled
-                if self.random_clip:
-                    audio1, _ = self.extract_random_clip(audio1)
-                    audio2, _ = self.extract_random_clip(audio2)
+
                 
                 # Apply mixup
                 mixed_audio, mixed_label, mix_meta = self.apply_mixup(audio1, audio2, label1, label2)
@@ -552,7 +511,7 @@ class AudioAugmenter:
                     'country': row.get('country', ''),
                     'continent': row.get('continent', '')
                 }
-            print(f"📊 Loaded metadata for {len(original_metadata_dict)} original files")
+            print(f"Loaded metadata for {len(original_metadata_dict)} original files")
         
         print(f"Processing audio files from {input_dir}")
         if species_filter:
@@ -566,8 +525,7 @@ class AudioAugmenter:
             ('time_shift', self.time_shift),
             ('freq_masking', self.freq_masking),
             ('time_masking', self.time_masking),
-            ('color_jitter', self.color_jitter),
-            ('random_clip', self.random_clip)
+            ('color_jitter', self.color_jitter)
         ] if enabled]
         print(f"Enabled augmentations: {enabled_augs}")
         
@@ -644,8 +602,7 @@ class AudioAugmenter:
                     'time_shift': self.time_shift,
                     'freq_masking': self.freq_masking,
                     'time_masking': self.time_masking,
-                    'color_jitter': self.color_jitter,
-                    'random_clip': self.random_clip
+                    'color_jitter': self.color_jitter
                 },
                 'parameters': self.aug_params,
                 'target_sr': self.target_sr,
@@ -727,7 +684,7 @@ def filter_and_concatenate_data(base_metadata_path: str,
     
     # Load base metadata
     base_df = pd.read_csv(base_metadata_path)
-    print(f"📊 Loaded {len(base_df)} records from base metadata")
+    print(f"Loaded {len(base_df)} records from base metadata")
     
     # Initialize combined dataframe with base data
     combined_df = base_df.copy()
@@ -735,14 +692,14 @@ def filter_and_concatenate_data(base_metadata_path: str,
     # Add augmented data if provided
     if augmented_metadata_path and Path(augmented_metadata_path).exists():
         aug_df = pd.read_csv(augmented_metadata_path)
-        print(f"📊 Loaded {len(aug_df)} augmented records")
+        print(f"Loaded {len(aug_df)} augmented records")
         combined_df = pd.concat([combined_df, aug_df], ignore_index=True)
     
     # Apply filters if provided
     if filter_conditions:
         original_len = len(combined_df)
         combined_df = apply_filters(combined_df, filter_conditions)
-        print(f"🔍 Filtered from {original_len} to {len(combined_df)} records")
+        print(f"Filtered from {original_len} to {len(combined_df)} records")
     
     # Copy/organize audio files if requested
     if copy_audio_files:
@@ -751,7 +708,7 @@ def filter_and_concatenate_data(base_metadata_path: str,
     # Save combined metadata
     Path(output_metadata_path).parent.mkdir(parents=True, exist_ok=True)
     combined_df.to_csv(output_metadata_path, index=False)
-    print(f"💾 Saved combined metadata to {output_metadata_path}")
+    print(f"Saved combined metadata to {output_metadata_path}")
     
     return output_metadata_path
 
@@ -763,16 +720,16 @@ def apply_filters(df: pd.DataFrame, conditions: Dict) -> pd.DataFrame:
     # Filter by species
     if 'species' in conditions:
         filtered_df = filtered_df[filtered_df['primary_label'].isin(conditions['species'])]
-        print(f"  🐦 Species filter: kept {len(filtered_df)} records")
+        print(f"  Species filter: kept {len(filtered_df)} records")
     
     # Filter by duration
     if 'min_duration' in conditions:
         filtered_df = filtered_df[filtered_df['duration'] >= conditions['min_duration']]
-        print(f"  ⏱️ Min duration filter: kept {len(filtered_df)} records")
+        print(f"  Min duration filter: kept {len(filtered_df)} records")
     
     if 'max_duration' in conditions:
         filtered_df = filtered_df[filtered_df['duration'] <= conditions['max_duration']]
-        print(f"  ⏱️ Max duration filter: kept {len(filtered_df)} records")
+        print(f"  Max duration filter: kept {len(filtered_df)} records")
     
     # Filter by rating
     if 'rating' in conditions:
@@ -782,12 +739,12 @@ def apply_filters(df: pd.DataFrame, conditions: Dict) -> pd.DataFrame:
             filtered_df = filtered_df[filtered_df['rating'].isin(rating_values)]
         else:
             filtered_df = filtered_df[filtered_df['rating'] == rating_values]
-        print(f"  ⭐ Rating filter: kept {len(filtered_df)} records")
+        print(f"  Rating filter: kept {len(filtered_df)} records")
     
     # Exclude augmented samples
     if conditions.get('exclude_augmented', False):
         filtered_df = filtered_df[filtered_df['author'] != 'AudioAugmenter']
-        print(f"  🚫 Exclude augmented: kept {len(filtered_df)} records")
+        print(f"  Exclude augmented: kept {len(filtered_df)} records")
     
     # Include only specific augmentation types
     if 'augmentation_types' in conditions:
@@ -798,13 +755,13 @@ def apply_filters(df: pd.DataFrame, conditions: Dict) -> pd.DataFrame:
         if not conditions.get('exclude_original', False):
             mask |= (filtered_df['author'] != 'AudioAugmenter')
         filtered_df = filtered_df[mask]
-        print(f"  🎛️ Augmentation type filter: kept {len(filtered_df)} records")
+        print(f"  Augmentation type filter: kept {len(filtered_df)} records")
     
     # Filter by author
     if 'author' in conditions:
         authors = conditions['author'] if isinstance(conditions['author'], list) else [conditions['author']]
         filtered_df = filtered_df[filtered_df['author'].isin(authors)]
-        print(f"  👤 Author filter: kept {len(filtered_df)} records")
+        print(f"  Author filter: kept {len(filtered_df)} records")
     
     # Balance samples per species
     if 'min_samples_per_species' in conditions or 'max_samples_per_species' in conditions:
@@ -815,14 +772,14 @@ def apply_filters(df: pd.DataFrame, conditions: Dict) -> pd.DataFrame:
             # Apply min constraint
             if 'min_samples_per_species' in conditions:
                 if len(species_df) < conditions['min_samples_per_species']:
-                    print(f"    ⚠️ Skipping {species}: only {len(species_df)} samples (need {conditions['min_samples_per_species']})")
+                    print(f"    Skipping {species}: only {len(species_df)} samples (need {conditions['min_samples_per_species']})")
                     continue
             
             # Apply max constraint
             if 'max_samples_per_species' in conditions:
                 if len(species_df) > conditions['max_samples_per_species']:
                     species_df = species_df.sample(n=conditions['max_samples_per_species'], random_state=42)
-                    print(f"    🎯 Limited {species} to {conditions['max_samples_per_species']} samples")
+                    print(f"    Limited {species} to {conditions['max_samples_per_species']} samples")
             
             balanced_dfs.append(species_df)
         
@@ -848,7 +805,7 @@ def organize_audio_files(metadata_df: pd.DataFrame, target_dir: str):
     target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
     
-    print(f"📁 Organizing {len(metadata_df)} audio files to {target_dir}")
+    print(f"Organizing {len(metadata_df)} audio files to {target_dir}")
     
     copied_count = 0
     missing_count = 0
@@ -881,10 +838,10 @@ def organize_audio_files(metadata_df: pd.DataFrame, target_dir: str):
                 shutil.copy2(source_path, target_file_path)
                 copied_count += 1
         else:
-            print(f"    ⚠️ Could not find audio file: {filename}")
+            print(f"    Could not find audio file: {filename}")
             missing_count += 1
     
-    print(f"  📋 Copied {copied_count} files, {missing_count} missing files")
+    print(f"  Copied {copied_count} files, {missing_count} missing files")
 
 
 # Example usage functions
@@ -898,7 +855,6 @@ def create_full_augmentation_suite(input_dir: str = "birdclef-2023/train_audio")
         freq_masking=True,
         time_masking=True,
         color_jitter=True,
-        random_clip=True,
         output_dir="birdclef-2023/augmented_full"
     )
 
@@ -908,7 +864,7 @@ def create_basic_augmentation_suite(input_dir: str = "birdclef-2023/train_audio"
     return AudioAugmenter(
         mixup=True,
         background_noise=True,
-        random_clip=True,
+
         output_dir="birdclef-2023/augmented_basic"
     )
 
