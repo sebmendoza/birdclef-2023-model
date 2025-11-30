@@ -515,7 +515,7 @@ class AudioAugmenter:
         
         return results
     
-    def process_directory(self, input_dir: str, metadata_csv: str = None, species_filter: List[str] = None) -> str:
+    def process_directory(self, input_dir: str, metadata_csv: str = None, species_filter: List[str] = None, max_files_per_species: int = None) -> str:
         """
         Process all audio files in directory with augmentations
         
@@ -524,6 +524,8 @@ class AudioAugmenter:
             metadata_csv: Optional path to existing metadata CSV
             species_filter: Optional list of species directories to process (e.g., ['barswa', 'comsan'])
                            If None, processes all species directories
+            max_files_per_species: Optional limit on number of files to process per species
+                                 If None, processes all available files
             
         Returns:
             Path to generated metadata CSV
@@ -555,6 +557,8 @@ class AudioAugmenter:
         print(f"Processing audio files from {input_dir}")
         if species_filter:
             print(f"Species filter: {species_filter}")
+        if max_files_per_species:
+            print(f"Max files per species: {max_files_per_species}")
         enabled_augs = [name for name, enabled in [
             ('mixup', self.mixup),
             ('background_noise', self.background_noise), 
@@ -581,6 +585,11 @@ class AudioAugmenter:
             
             # Get all audio files for this species
             audio_files = list(species_dir.glob("*.ogg")) + list(species_dir.glob("*.mp3")) + list(species_dir.glob("*.wav"))
+            
+            # Limit files per species if specified
+            if max_files_per_species and len(audio_files) > max_files_per_species:
+                audio_files = audio_files[:max_files_per_species]
+                print(f"  Limited to {max_files_per_species} files (out of {len(list(species_dir.glob('*.ogg')) + list(species_dir.glob('*.mp3')) + list(species_dir.glob('*.wav')))} available)")
             
             for audio_file in audio_files:
                 # Get original metadata for this file
