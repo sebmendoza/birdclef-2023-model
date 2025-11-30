@@ -15,7 +15,9 @@ from data import (
     TRIMMED_CHUNK_ROOT,
     FEATURES_ROOT,
     FEATURES_TRIMMED_ROOT,
+    AUGMENTED_DATA_ROOT,
     load_cleaned_metadata,
+    load_combined_metadata,
 )
 
 
@@ -79,7 +81,39 @@ def compute_global_rms(
     else:
         chunk_root = Path(chunk_root)
 
+    # Parse filename to get species and file parts
+    # filename might be "species/XC123456.ogg" or just "XC123456.ogg"
+    filename_path = Path(filename)
+    if len(filename_path.parts) > 1:
+        # Has species directory: "species/XC123456.ogg"
+        species = filename_path.parts[0]
+        audio_filename = filename_path.name
+    else:
+        # Just filename: "XC123456.ogg" - need to infer species from content
+        audio_filename = filename_path.name
+        species = None
+    
+    # First try original location (for both augmented and original files)
     audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
+    
+    # If not found in original location, try augmented directory
+    if not audio_path.exists():
+        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
+        if augmented_base.exists():
+            # First try with species subdirectory if we have it
+            if species:
+                augmented_audio_path = augmented_base / species / audio_filename
+                if augmented_audio_path.exists():
+                    audio_path = augmented_audio_path
+            
+            # If still not found, check all species subdirectories in augmented data
+            if not audio_path.exists():
+                for subdir in augmented_base.iterdir():
+                    if subdir.is_dir():
+                        potential_path = subdir / audio_filename
+                        if potential_path.exists():
+                            audio_path = potential_path
+                            break
 
     try:
         y, _ = librosa.load(audio_path, sr=sr, duration=max_duration)
@@ -112,7 +146,39 @@ def compute_logmel_mean_features(
     else:
         chunk_root = Path(chunk_root)
 
+    # Parse filename to get species and file parts
+    # filename might be "species/XC123456.ogg" or just "XC123456.ogg"
+    filename_path = Path(filename)
+    if len(filename_path.parts) > 1:
+        # Has species directory: "species/XC123456.ogg"
+        species = filename_path.parts[0]
+        audio_filename = filename_path.name
+    else:
+        # Just filename: "XC123456.ogg" - need to infer species from content
+        audio_filename = filename_path.name
+        species = None
+    
+    # First try original location (for both augmented and original files)
     audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
+    
+    # If not found in original location, try augmented directory
+    if not audio_path.exists():
+        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
+        if augmented_base.exists():
+            # First try with species subdirectory if we have it
+            if species:
+                augmented_audio_path = augmented_base / species / audio_filename
+                if augmented_audio_path.exists():
+                    audio_path = augmented_audio_path
+            
+            # If still not found, check all species subdirectories in augmented data
+            if not audio_path.exists():
+                for subdir in augmented_base.iterdir():
+                    if subdir.is_dir():
+                        potential_path = subdir / audio_filename
+                        if potential_path.exists():
+                            audio_path = potential_path
+                            break
 
     try:
         y, _sr = librosa.load(audio_path, sr=sr, duration=max_duration)
@@ -175,24 +241,43 @@ def compute_or_load_features(
     spec: FeatureSpec,
     base_dir: Path | str | None = None,
     chunk_root: Path | str | None = None,
+    include_augmented: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Compute features for all samples or load them from a cache file."""
+    """Compute features for all samples or load them from a cache file.
+    
+    Args:
+        spec: Feature specification defining what features to compute
+        base_dir: Base directory for the project 
+        chunk_root: Directory containing audio chunks
+        include_augmented: Whether to include augmented data in training
+        
+    Returns:
+        Tuple of (X, y) arrays for features and targets
+    """
 
     if base_dir is None:
         base_dir = Path.cwd()
     else:
         base_dir = Path(base_dir)
 
-    cache_path = _get_feature_cache_path(
-        spec, base_dir=base_dir, chunk_root=chunk_root)
+    # Load metadata first to understand what we're working with
+    if include_augmented:
+        print("🎵 Loading combined metadata (original + augmented)...")
+        df = load_combined_metadata(base_dir=base_dir)
+        # Use different cache file for combined (original + augmented) data
+        cache_path = _get_feature_cache_path(
+            spec, base_dir=base_dir, chunk_root=chunk_root)
+        cache_path = cache_path.with_name(f"combined_{cache_path.name}")
+    else:
+        df = load_cleaned_metadata(base_dir=base_dir)
+        cache_path = _get_feature_cache_path(
+            spec, base_dir=base_dir, chunk_root=chunk_root)
+    
     if cache_path.exists():
         print(f"Loading cached {spec.kind} features from {cache_path} ...")
         with cache_path.open("rb") as f:
             cache = pickle.load(f)
         return cache["X"], cache["y"]
-
-    # No cache yet; compute from audio + metadata
-    df = load_cleaned_metadata(base_dir=base_dir)
     feature_cols, target_col = get_feature_and_target_columns(spec)
 
     required_columns = ["duration", target_col, "filename"]
