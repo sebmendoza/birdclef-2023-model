@@ -384,26 +384,42 @@ class AudioAugmenter:
                 sf.write(output_path, aug_audio, self.target_sr, format='OGG', subtype='VORBIS')
                 
                 # Create metadata record with inherited metadata (cleaned schema)
-                duration = len(aug_audio) / sr
+                duration = len(aug_audio) / self.target_sr
+                
+                # Ensure we have coordinates if they exist in original metadata
+                has_coords = False
+                lat = original_metadata.get('latitude', '') if original_metadata else ''
+                lon = original_metadata.get('longitude', '') if original_metadata else ''
+                if lat and lon and lat != '' and lon != '':
+                    try:
+                        float(lat)
+                        float(lon)
+                        has_coords = True
+                    except (ValueError, TypeError):
+                        pass
+                
                 metadata_record = {
                     'primary_label': primary_label,
-                    'type': original_metadata.get('type', "['augmented']"),
-                    'latitude': original_metadata.get('latitude', ''),
-                    'longitude': original_metadata.get('longitude', ''),
-                    'rating': original_metadata.get('rating', 'synthetic'),
+                    'type': original_metadata.get('type', "['augmented']") if original_metadata else "['augmented']",
+                    'latitude': lat,
+                    'longitude': lon,
+                    'rating': original_metadata.get('rating', 'synthetic') if original_metadata else 'synthetic',
                     'filename': f"{primary_label}/{aug_filename}",
                     'duration': duration,
-                    'has_coordinates': bool(original_metadata.get('latitude', '') and original_metadata.get('longitude', '')),
-                    'country': original_metadata.get('country', ''),
-                    'continent': original_metadata.get('continent', ''),
+                    'has_coordinates': has_coords,
+                    'country': original_metadata.get('country', '') if original_metadata else '',
+                    'continent': original_metadata.get('continent', '') if original_metadata else '',
                     'original_file': str(file_path),
-                    'augmentation_metadata': {
-                        'clip_extraction': clip_metadata,
-                        'augmentation': aug_meta
-                    }
+                    'augmentation_metadata': aug_meta
                 }
                 
                 results.append(metadata_record)
+                
+                # Debug: verify coordinates were inherited
+                if has_coords:
+                    print(f"  ✅ Inherited coordinates for {aug_filename}: ({lat}, {lon})")
+                elif original_metadata and (original_metadata.get('latitude') or original_metadata.get('longitude')):
+                    print(f"  ⚠️  Failed to inherit coordinates for {aug_filename}: lat={original_metadata.get('latitude')}, lon={original_metadata.get('longitude')}")
             
             return results
             
@@ -494,15 +510,33 @@ class AudioAugmenter:
         all_audio_files = []
         all_labels = []
         
-        # Load original metadata if provided
+        # Load original metadata if provided, default to cleaned metadata
         original_metadata_dict = {}
+        if metadata_csv is None:
+            # Try to find the cleaned metadata file
+            cleaned_metadata_path = Path(input_dir).parent / "train_metadata_cleaned.csv"
+            if cleaned_metadata_path.exists():
+                metadata_csv = str(cleaned_metadata_path)
+                print(f"📊 Using default cleaned metadata: {metadata_csv}")
+        
         if metadata_csv and Path(metadata_csv).exists():
             print(f"📊 Loading original metadata from {metadata_csv}")
             orig_df = pd.read_csv(metadata_csv)
+            print(f"📊 Loaded {len(orig_df)} metadata records")
+            print(f"📊 Created {len(original_metadata_dict)} lookup entries")
+            
             # Create lookup dictionary: filename -> metadata
             for _, row in orig_df.iterrows():
-                filename = Path(row['filename']).name  # Just the filename without path
-                original_metadata_dict[filename] = {
+                full_filename = row['filename']  # e.g., "combuz1/XC142599.ogg"
+                filename = Path(full_filename).name  # Just the filename without path: "XC142599.ogg"
+                
+                # For chunk files, also create entries without the chunk suffix
+                # e.g., "barswa_001_chunk_0.ogg" -> "barswa_001.ogg"
+                base_filename = filename
+                if "_chunk_" in filename:
+                    base_filename = filename.split("_chunk_")[0] + ".ogg"
+                
+                metadata_record = {
                     'type': row.get('type', ''),
                     'latitude': row.get('latitude', ''),
                     'longitude': row.get('longitude', ''),
@@ -511,6 +545,15 @@ class AudioAugmenter:
                     'country': row.get('country', ''),
                     'continent': row.get('continent', '')
                 }
+                
+                # Store under multiple keys for flexible lookup:
+                # 1. Full path from metadata: "combuz1/XC142599.ogg"
+                # 2. Just filename: "XC142599.ogg" 
+                # 3. Base filename if chunked: "XC142599.ogg"
+                original_metadata_dict[full_filename] = metadata_record
+                original_metadata_dict[filename] = metadata_record
+                if base_filename != filename:
+                    original_metadata_dict[base_filename] = metadata_record
             print(f"Loaded metadata for {len(original_metadata_dict)} original files")
         
         print(f"Processing audio files from {input_dir}")
@@ -553,6 +596,15 @@ class AudioAugmenter:
                 # Get original metadata for this file
                 file_key = audio_file.name
                 orig_metadata = original_metadata_dict.get(file_key, None)
+                
+                # Debug: print if metadata not found
+                if orig_metadata is None and original_metadata_dict:
+                    print(f"⚠️  No metadata found for key '{file_key}'")
+                    # Show some example keys for debugging
+                    sample_keys = list(original_metadata_dict.keys())[:5]
+                    print(f"   Sample available keys: {sample_keys}")
+                elif orig_metadata and orig_metadata.get('latitude'):
+                    print(f"✅ Found metadata for {file_key}: lat={orig_metadata.get('latitude')}, lon={orig_metadata.get('longitude')}")
                 
                 # Process individual file augmentations
                 file_results = self.process_audio_file(audio_file, primary_label, orig_metadata)
