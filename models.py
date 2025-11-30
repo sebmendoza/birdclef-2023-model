@@ -85,8 +85,18 @@ def train_and_evaluate_experiment(
     test_size: float = 0.2,
     random_state: int = 42,
     chunk_root: Path | str | None = None,
+    include_augmented: bool = False,
 ) -> None:
-    """Train a model specified by `cfg` and print simple metrics."""
+    """Train a model specified by `cfg` and print simple metrics.
+    
+    Args:
+        cfg: Experiment configuration
+        base_dir: Base directory for the project
+        test_size: Fraction of data to use for testing
+        random_state: Random seed for reproducibility
+        chunk_root: Directory containing audio chunks
+        include_augmented: Whether to include augmented data in training
+    """
 
     if base_dir is None:
         base_dir = Path.cwd()
@@ -94,7 +104,7 @@ def train_and_evaluate_experiment(
         base_dir = Path(base_dir)
 
     X, y = compute_or_load_features(
-        cfg.feature_spec, base_dir=base_dir, chunk_root=chunk_root)
+        cfg.feature_spec, base_dir=base_dir, chunk_root=chunk_root, include_augmented=include_augmented)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,

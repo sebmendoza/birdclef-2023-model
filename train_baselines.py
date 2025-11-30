@@ -46,13 +46,31 @@ EXPERIMENTS: list[ExperimentConfig] = [
 ]
 
 
-def main() -> None:
+def main(include_augmented: bool = False) -> None:
+    """Run baseline experiments with optional augmented data.
+    
+    Args:
+        include_augmented: Whether to include augmented data in training
+    """
     base_dir = Path.cwd()
+    print(f"🎵 Running experiments with augmented data: {include_augmented}")
+    print("=" * 50)
+    
     for cfg in EXPERIMENTS:
         train_and_evaluate_experiment(
-            cfg, base_dir=base_dir, chunk_root=TRIMMED_CHUNK_ROOT)
+            cfg, base_dir=base_dir, chunk_root=TRIMMED_CHUNK_ROOT, include_augmented=include_augmented)
         print("\n")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Train BirdCLEF baseline models")
+    parser.add_argument(
+        "--include-augmented", 
+        action="store_true", 
+        help="Include augmented data in training"
+    )
+    
+    args = parser.parse_args()
+    main(include_augmented=args.include_augmented)
