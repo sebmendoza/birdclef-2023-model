@@ -58,6 +58,100 @@ def get_feature_and_target_columns(spec: FeatureSpec) -> Tuple[list[str], str]:
 
 
 # ---------------------------------------------------------------------------
+# Common audio loading utilities
+# ---------------------------------------------------------------------------
+
+
+def _resolve_audio_path(
+    filename: str,
+    base_dir: Path,
+    chunk_root: Path,
+) -> Path:
+    """Resolve the path to an audio file, checking both original and augmented locations.
+
+    Args:
+        filename: Audio filename, possibly with species subdirectory
+        base_dir: Base directory for the project
+        chunk_root: Directory containing audio chunks
+
+    Returns:
+        Path to the audio file
+    """
+    # Parse filename to get species and file parts
+    # filename might be "species/XC123456.ogg" or just "XC123456.ogg"
+    filename_path = Path(filename)
+    if len(filename_path.parts) > 1:
+        # Has species directory: "species/XC123456.ogg"
+        species = filename_path.parts[0]
+        audio_filename = filename_path.name
+    else:
+        # Just filename: "XC123456.ogg" - need to infer species from content
+        audio_filename = filename_path.name
+        species = None
+
+    # First try original location (for both augmented and original files)
+    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
+
+    # If not found in original location, try augmented directory
+    if not audio_path.exists():
+        augmented_base = base_dir / \
+            AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
+        if augmented_base.exists():
+            # First try with species subdirectory if we have it
+            if species:
+                augmented_audio_path = augmented_base / species / audio_filename
+                if augmented_audio_path.exists():
+                    audio_path = augmented_audio_path
+
+            # If still not found, check all species subdirectories in augmented data
+            if not audio_path.exists():
+                for subdir in augmented_base.iterdir():
+                    if subdir.is_dir():
+                        potential_path = subdir / audio_filename
+                        if potential_path.exists():
+                            audio_path = potential_path
+                            break
+
+    return audio_path
+
+
+def _load_audio(
+    filename: str,
+    base_dir: Path,
+    chunk_root: Path,
+    sr: int | None = None,
+    max_duration: float | None = None,
+) -> tuple[np.ndarray, int]:
+    """Load audio file with error handling.
+
+    Args:
+        filename: Audio filename
+        base_dir: Base directory for the project
+        chunk_root: Directory containing audio chunks
+        sr: Sample rate (None to use file's native rate)
+        max_duration: Maximum duration to load in seconds
+
+    Returns:
+        Tuple of (audio_data, sample_rate)
+
+    Raises:
+        FileNotFoundError: If audio file cannot be found
+        Exception: If audio loading fails
+    """
+    audio_path = _resolve_audio_path(filename, base_dir, chunk_root)
+
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    try:
+        y, sr_loaded = librosa.load(audio_path, sr=sr, duration=max_duration)
+        return y, sr_loaded
+    except Exception as exc:
+        raise Exception(
+            f"Failed to load audio from {audio_path}: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
 # Low-level feature computation
 # ---------------------------------------------------------------------------
 
@@ -81,48 +175,15 @@ def compute_global_rms(
     else:
         chunk_root = Path(chunk_root)
 
-    # Parse filename to get species and file parts
-    # filename might be "species/XC123456.ogg" or just "XC123456.ogg"
-    filename_path = Path(filename)
-    if len(filename_path.parts) > 1:
-        # Has species directory: "species/XC123456.ogg"
-        species = filename_path.parts[0]
-        audio_filename = filename_path.name
-    else:
-        # Just filename: "XC123456.ogg" - need to infer species from content
-        audio_filename = filename_path.name
-        species = None
-    
-    # First try original location (for both augmented and original files)
-    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
-    
-    # If not found in original location, try augmented directory
-    if not audio_path.exists():
-        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
-        if augmented_base.exists():
-            # First try with species subdirectory if we have it
-            if species:
-                augmented_audio_path = augmented_base / species / audio_filename
-                if augmented_audio_path.exists():
-                    audio_path = augmented_audio_path
-            
-            # If still not found, check all species subdirectories in augmented data
-            if not audio_path.exists():
-                for subdir in augmented_base.iterdir():
-                    if subdir.is_dir():
-                        potential_path = subdir / audio_filename
-                        if potential_path.exists():
-                            audio_path = potential_path
-                            break
-
     try:
-        y, _ = librosa.load(audio_path, sr=sr, duration=max_duration)
+        y, _ = _load_audio(filename, base_dir, chunk_root,
+                           sr=sr, max_duration=max_duration)
         if y.size == 0:
             return float("nan")
         rms = float(np.sqrt(np.mean(np.square(y, dtype=np.float64))))
         return rms
     except Exception as exc:  # pragma: no cover
-        print(f"[WARN] Failed to compute RMS for {audio_path}: {exc}")
+        print(f"[WARN] Failed to compute RMS for {filename}: {exc}")
         return float("nan")
 
 
@@ -146,42 +207,9 @@ def compute_logmel_mean_features(
     else:
         chunk_root = Path(chunk_root)
 
-    # Parse filename to get species and file parts
-    # filename might be "species/XC123456.ogg" or just "XC123456.ogg"
-    filename_path = Path(filename)
-    if len(filename_path.parts) > 1:
-        # Has species directory: "species/XC123456.ogg"
-        species = filename_path.parts[0]
-        audio_filename = filename_path.name
-    else:
-        # Just filename: "XC123456.ogg" - need to infer species from content
-        audio_filename = filename_path.name
-        species = None
-    
-    # First try original location (for both augmented and original files)
-    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
-    
-    # If not found in original location, try augmented directory
-    if not audio_path.exists():
-        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
-        if augmented_base.exists():
-            # First try with species subdirectory if we have it
-            if species:
-                augmented_audio_path = augmented_base / species / audio_filename
-                if augmented_audio_path.exists():
-                    audio_path = augmented_audio_path
-            
-            # If still not found, check all species subdirectories in augmented data
-            if not audio_path.exists():
-                for subdir in augmented_base.iterdir():
-                    if subdir.is_dir():
-                        potential_path = subdir / audio_filename
-                        if potential_path.exists():
-                            audio_path = potential_path
-                            break
-
     try:
-        y, _sr = librosa.load(audio_path, sr=sr, duration=max_duration)
+        y, _sr = _load_audio(filename, base_dir, chunk_root,
+                             sr=sr, max_duration=max_duration)
         if y.size == 0:
             return np.full(n_mels, np.nan, dtype=np.float32)
 
@@ -190,7 +218,7 @@ def compute_logmel_mean_features(
         features = log_S.mean(axis=1).astype(np.float32)
         return features
     except Exception as exc:  # pragma: no cover
-        print(f"[WARN] Failed to compute log-mel for {audio_path}: {exc}")
+        print(f"[WARN] Failed to compute log-mel for {filename}: {exc}")
         return np.full(n_mels, np.nan, dtype=np.float32)
 
 
@@ -244,13 +272,13 @@ def compute_or_load_features(
     include_augmented: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute features for all samples or load them from a cache file.
-    
+
     Args:
         spec: Feature specification defining what features to compute
         base_dir: Base directory for the project 
         chunk_root: Directory containing audio chunks
         include_augmented: Whether to include augmented data in training
-        
+
     Returns:
         Tuple of (X, y) arrays for features and targets
     """
@@ -272,7 +300,7 @@ def compute_or_load_features(
         df = load_cleaned_metadata(base_dir=base_dir)
         cache_path = _get_feature_cache_path(
             spec, base_dir=base_dir, chunk_root=chunk_root)
-    
+
     if cache_path.exists():
         print(f"Loading cached {spec.kind} features from {cache_path} ...")
         with cache_path.open("rb") as f:
