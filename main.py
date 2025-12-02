@@ -43,11 +43,6 @@ EXPERIMENTS: list[ExperimentConfig] = [
         feature_spec=FeatureSpec(kind="logmel", n_mels=64),
         model_builder=lambda: build_random_forest_pipeline(random_state=42),
     ),
-    ExperimentConfig(
-        name="1DCNN",
-        feature_spec=FeatureSpec(kind="rms"),
-        model_builder=build_cnn_pipeline,
-    ),
 ]
 
 
