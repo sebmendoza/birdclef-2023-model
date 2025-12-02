@@ -1,0 +1,9 @@
+Experiment: BirdNET Baseline
+Top-1 Accuracy: 0.7759
+Minimum Confidence Threshold: 0.1
+Number of Samples: 946
+Mean Confidence: 0.7051
+Median Confidence: 0.9504
+
+Classification Report:
+{'barswa': {'precision': 1.0, 'recall': 0.7676767676767676, 'f1-score': 0.8685714285714285, 'support': 99.0}, 'cohmar1': {'precision': 0.9705882352941176, 'recall': 0.7857142857142857, 'f1-score': 0.868421052631579, 'support': 84.0}, 'combuz1': {'precision': 1.0, 'recall': 0.8210526315789474, 'f1-score': 0.9017341040462428, 'support': 95.0}, 'comsan': {'precision': 0.9863013698630136, 'recall': 0.7272727272727273, 'f1-score': 0.8372093023255814, 'support': 99.0}, 'eaywag1': {'precision': 1.0, 'recall': 0.6666666666666666, 'f1-score': 0.8, 'support': 99.0}, 'eubeat1': {'precision': 0.9629629629629629, 'recall': 0.896551724137931, 'f1-score': 0.9285714285714286, 'support': 87.0}, 'hoopoe': {'precision': 1.0, 'recall': 0.735632183908046, 'f1-score': 0.847682119205298, 'support': 87.0}, 'thrnig1': {'precision': 1.0, 'recall': 0.86, 'f1-score': 0.9247311827956989, 'support': 100.0}, 'unknown': {'precision': 0.0, 'recall': 0.0, 'f1-score': 0.0, 'support': 0.0}, 'wlwwar': {'precision': 1.0, 'recall': 0.7373737373737373, 'f1-score': 0.8488372093023255, 'support': 99.0}, 'woosan': {'precision': 1.0, 'recall': 0.7731958762886598, 'f1-score': 0.872093023255814, 'support': 97.0}, 'accuracy': 0.7758985200845666, 'macro avg': {'precision': 0.9018047789200085, 'recall': 0.7064669636925244, 'f1-score': 0.7907137137004906, 'support': 946.0}, 'weighted avg': {'precision': 0.9925486523878668, 'recall': 0.7758985200845666, 'f1-score': 0.8692594974388361, 'support': 946.0}}
