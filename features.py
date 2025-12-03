@@ -61,7 +61,15 @@ def _resolve_audio_path(
     chunk_root: Path,
 ) -> Path:
     """Resolve the path to an audio file, checking both original and augmented locations.
-
+    
+    Args:
+        filename: Audio filename (e.g., 'species/file.ogg' or 'file.ogg')
+        base_dir: Base directory for the project
+        chunk_root: Directory containing audio chunks
+        
+    Returns:
+        Path to the audio file
+    """
     if base_dir is None:
         base_dir = Path.cwd()
     else:
@@ -173,7 +181,7 @@ def compute_global_rms(
         rms = float(np.sqrt(np.mean(np.square(y, dtype=np.float64))))
         return rms
     except Exception as exc:
-        print(f"[WARN] Failed to compute RMS for {audio_path}: {exc}")
+        print(f"[WARN] Failed to compute RMS for {filename}: {exc}")
         return float("nan")
 
 
@@ -197,34 +205,7 @@ def compute_logmel_mean_features(
     else:
         chunk_root = Path(chunk_root)
 
-    # Parse filename
-    filename_path = Path(filename)
-    if len(filename_path.parts) > 1:
-        species = filename_path.parts[0]
-        audio_filename = filename_path.name
-    else:
-        audio_filename = filename_path.name
-        species = None
-    
-    # Try original location
-    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
-    
-    # If not found, try augmented directory
-    if not audio_path.exists():
-        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
-        if augmented_base.exists():
-            if species:
-                augmented_audio_path = augmented_base / species / audio_filename
-                if augmented_audio_path.exists():
-                    audio_path = augmented_audio_path
-            
-            if not audio_path.exists():
-                for subdir in augmented_base.iterdir():
-                    if subdir.is_dir():
-                        potential_path = subdir / audio_filename
-                        if potential_path.exists():
-                            audio_path = potential_path
-                            break
+    audio_path = _resolve_audio_path(filename, base_dir, chunk_root)
 
     try:
         y, _sr = librosa.load(audio_path, sr=sr, duration=max_duration)
@@ -269,32 +250,7 @@ def compute_logmel_rms_timeseries(
     else:
         chunk_root = Path(chunk_root)
 
-    # Parse filename
-    filename_path = Path(filename)
-    if len(filename_path.parts) > 1:
-        species = filename_path.parts[0]
-        audio_filename = filename_path.name
-    else:
-        audio_filename = filename_path.name
-        species = None
-        
-    audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
-
-    if not audio_path.exists():
-        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
-        if augmented_base.exists():
-            if species:
-                augmented_audio_path = augmented_base / species / audio_filename
-                if augmented_audio_path.exists():
-                    audio_path = augmented_audio_path
-            
-            if not audio_path.exists():
-                for subdir in augmented_base.iterdir():
-                    if subdir.is_dir():
-                        potential_path = subdir / audio_filename
-                        if potential_path.exists():
-                            audio_path = potential_path
-                            break
+    audio_path = _resolve_audio_path(filename, base_dir, chunk_root)
 
     try:
         # Load audio
