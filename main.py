@@ -1,64 +1,56 @@
 """Entry point for running simple BirdCLEF baseline models.
 
-This script trains four models on features computed from 15-second chunks:
+This script trains models on features computed from 15-second chunks.
+Experiments are defined in config.py.
 
-1) Logistic Regression with duration + global RMS
-2) Random Forest with duration + global RMS
-3) Logistic Regression with duration + log-mel features
-4) Random Forest with duration + log-mel features
+Usage:
+    python main.py                    # Run all experiments
+    python main.py lr                 # Run only logistic regression models
+    python main.py rf                 # Run only random forest models
+    python main.py --include-augmented # Include augmented data
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from features import FeatureSpec
+from config import get_experiments_by_model_type
 from data import TRIMMED_CHUNK_ROOT
-from models import (
-    ExperimentConfig,
-    build_logistic_regression_pipeline,
-    build_random_forest_pipeline,
-    train_and_evaluate_experiment,
-)
+from models import train_and_evaluate_experiment
 
 
-EXPERIMENTS: list[ExperimentConfig] = [
-    ExperimentConfig(
-        name="Logistic Regression with RMS",
-        feature_spec=FeatureSpec(kind="rms"),
-        model_builder=build_logistic_regression_pipeline,
-    ),
-    ExperimentConfig(
-        name="Random Forest with RMS",
-        feature_spec=FeatureSpec(kind="rms"),
-        model_builder=lambda: build_random_forest_pipeline(random_state=42),
-    ),
-    ExperimentConfig(
-        name="Logistic Regression with Log-Mel",
-        feature_spec=FeatureSpec(kind="logmel", n_mels=64),
-        model_builder=build_logistic_regression_pipeline,
-    ),
-    ExperimentConfig(
-        name="Random Forest with Log-Mel",
-        feature_spec=FeatureSpec(kind="logmel", n_mels=64),
-        model_builder=lambda: build_random_forest_pipeline(random_state=42),
-    ),
-]
-
-
-def main(include_augmented: bool = False) -> None:
-    """Run baseline experiments with optional augmented data.
+def main(model_type: str | None = None, include_augmented: bool = False, n_epochs: int = 50) -> None:
+    """Run baseline experiments with optional model filtering.
 
     Args:
+        model_type: Model type to run ("lr", "rf", or None for all)
         include_augmented: Whether to include augmented data in training
+        n_epochs: Number of training epochs
     """
     base_dir = Path.cwd()
-    print(f"🎵 Running experiments with augmented data: {include_augmented}")
+
+    # Get experiments based on model type filter
+    experiment_defs = get_experiments_by_model_type(model_type)
+
+    if not experiment_defs:
+        print(f"No experiments found for model type: {model_type}")
+        return
+
+    print(f"🎵 Running {len(experiment_defs)} experiment(s)")
+    print(f"   Model filter: {model_type if model_type else 'all'}")
+    print(f"   Augmented data: {include_augmented}")
+    print(f"   Epochs: {n_epochs}")
     print("=" * 50)
 
-    for cfg in EXPERIMENTS:
+    for exp_def in experiment_defs:
+        cfg = exp_def.to_experiment_config()
         train_and_evaluate_experiment(
-            cfg, base_dir=base_dir, chunk_root=TRIMMED_CHUNK_ROOT, include_augmented=include_augmented)
+            cfg,
+            base_dir=base_dir,
+            chunk_root=TRIMMED_CHUNK_ROOT,
+            include_augmented=include_augmented,
+            n_epochs=n_epochs,
+        )
         print("\n")
 
 
@@ -66,12 +58,38 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Train BirdCLEF baseline models")
+        description="Train BirdCLEF baseline models",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py                    # Run all experiments
+  python main.py lr                 # Run only logistic regression
+  python main.py rf                 # Run only random forest
+  python main.py --include-augmented # Include augmented data
+  python main.py lr --n-epochs 100   # Run LR with 100 epochs
+        """
+    )
+    parser.add_argument(
+        "model_type",
+        nargs="?",
+        default=None,
+        help="Model type to run: 'lr' for logistic regression, 'rf' for random forest, or omit for all"
+    )
     parser.add_argument(
         "--include-augmented",
         action="store_true",
         help="Include augmented data in training"
     )
+    parser.add_argument(
+        "--n-epochs",
+        type=int,
+        default=50,
+        help="Number of training epochs (default: 50)"
+    )
 
     args = parser.parse_args()
-    main(include_augmented=args.include_augmented)
+    main(
+        model_type=args.model_type,
+        include_augmented=args.include_augmented,
+        n_epochs=args.n_epochs,
+    )
