@@ -7,7 +7,7 @@ from pathlib import Path
 from features import FeatureSpec, compute_or_load_features
 
 BASE_DIR = Path.cwd()
-INCLUDE_AUGMENTED = False  
+INCLUDE_AUGMENTED = True  
 # Number of mel bands
 N_MELS = 64
 

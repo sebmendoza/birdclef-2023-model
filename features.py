@@ -208,7 +208,30 @@ def compute_logmel_rms_timeseries(
 
     # Parse filename
     filename_path = Path(filename)
+    if len(filename_path.parts) > 1:
+        species = filename_path.parts[0]
+        audio_filename = filename_path.name
+    else:
+        audio_filename = filename_path.name
+        species = None
+        
     audio_path = base_dir / chunk_root.relative_to(Path.cwd()) / filename
+
+    if not audio_path.exists():
+        augmented_base = base_dir / AUGMENTED_DATA_ROOT.relative_to(Path.cwd()) / "train_audio"
+        if augmented_base.exists():
+            if species:
+                augmented_audio_path = augmented_base / species / audio_filename
+                if augmented_audio_path.exists():
+                    audio_path = augmented_audio_path
+            
+            if not audio_path.exists():
+                for subdir in augmented_base.iterdir():
+                    if subdir.is_dir():
+                        potential_path = subdir / audio_filename
+                        if potential_path.exists():
+                            audio_path = potential_path
+                            break
 
     try:
         # Load audio
